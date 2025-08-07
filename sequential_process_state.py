@@ -314,6 +314,7 @@ class SequentialStateProcessor:
             self.sheets_uploader = GoogleSheetsUploader()
 
         # State list for Flask app compatibility (all 38 Indian states)
+        # Note: State names must match exactly what appears in the UDISE portal
         self.states_list = [
             "ANDAMAN & NICOBAR ISLANDS",
             "ANDHRA PRADESH",
@@ -347,7 +348,7 @@ class SequentialStateProcessor:
             "PUNJAB",
             "RAJASTHAN",
             "SIKKIM",
-            "TAMIL NADU",
+            "TAMILNADU",  # Note: One word as it appears in UDISE portal
             "TELANGANA",
             "TRIPURA",
             "UTTARAKHAND",

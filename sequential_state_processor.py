@@ -60,7 +60,7 @@ class SequentialStateProcessor:
             "PUNJAB",
             "RAJASTHAN",
             "SIKKIM",
-            "TAMILNADU",
+            "TAMIL NADU",
             "TELANGANA",
             "TRIPURA",
             "UTTARAKHAND",

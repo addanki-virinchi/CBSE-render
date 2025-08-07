@@ -20,6 +20,16 @@ import os
 import glob
 import re
 
+# Import configuration
+try:
+    import config
+except ImportError:
+    # Fallback configuration for deployment environments
+    class config:
+        HEADLESS = True
+        WINDOW_SIZE = "1920,1080"
+        RENDER_DEPLOYMENT = True
+
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -76,8 +86,27 @@ class AutomatedPhase2Processor:
             options.add_argument("--memory-pressure-off")
             options.add_argument("--max_old_space_size=4096")
 
+            # Headless mode configuration from config.py
+            if getattr(config, 'HEADLESS', True):
+                options.add_argument("--headless")
+                logger.info("🔧 Running in headless mode (no GUI)")
+
+            # Window size configuration
+            window_size = getattr(config, 'WINDOW_SIZE', '1920,1080')
+            options.add_argument(f"--window-size={window_size}")
+
+            # Additional options for server environments
+            if getattr(config, 'RENDER_DEPLOYMENT', False):
+                options.add_argument("--disable-web-security")
+                options.add_argument("--disable-features=VizDisplayCompositor")
+                options.add_argument("--single-process")
+                logger.info("🚀 Configured for Render.com deployment")
+
             self.driver = uc.Chrome(options=options)
-            self.driver.maximize_window()
+
+            # Only maximize window if not in headless mode
+            if not getattr(config, 'HEADLESS', True):
+                self.driver.maximize_window()
 
             # Balanced timeouts for Phase 2 processing
             self.driver.implicitly_wait(5)  # Increased for dynamic content

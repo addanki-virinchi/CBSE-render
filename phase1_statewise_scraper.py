@@ -21,6 +21,16 @@ import logging
 from datetime import datetime
 import os
 
+# Import configuration
+try:
+    import config
+except ImportError:
+    # Fallback configuration for deployment environments
+    class config:
+        HEADLESS = True
+        WINDOW_SIZE = "1920,1080"
+        RENDER_DEPLOYMENT = True
+
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -59,9 +69,28 @@ class StatewiseSchoolScraper:
             options.add_argument("--memory-pressure-off")
             options.add_argument("--max_old_space_size=4096")
 
+            # Headless mode configuration from config.py
+            if getattr(config, 'HEADLESS', True):
+                options.add_argument("--headless")
+                logger.info("🔧 Running in headless mode (no GUI)")
+
+            # Window size configuration
+            window_size = getattr(config, 'WINDOW_SIZE', '1920,1080')
+            options.add_argument(f"--window-size={window_size}")
+
+            # Additional options for server environments
+            if getattr(config, 'RENDER_DEPLOYMENT', False):
+                options.add_argument("--disable-web-security")
+                options.add_argument("--disable-features=VizDisplayCompositor")
+                options.add_argument("--single-process")
+                logger.info("🚀 Configured for Render.com deployment")
+
             # Initialize Chrome driver
             self.driver = uc.Chrome(options=options, version_main=138)
-            self.driver.maximize_window()
+
+            # Only maximize window if not in headless mode
+            if not getattr(config, 'HEADLESS', True):
+                self.driver.maximize_window()
 
             # Balanced timeouts for reliability and speed
             self.driver.implicitly_wait(5)  # Balanced from 3 for stability

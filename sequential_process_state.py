@@ -25,6 +25,16 @@ import json
 import re
 import glob
 
+# Import configuration
+try:
+    import config
+except ImportError:
+    # Fallback configuration for deployment environments
+    class config:
+        HEADLESS = True
+        WINDOW_SIZE = "1920,1080"
+        RENDER_DEPLOYMENT = True
+
 # Google Sheets integration
 try:
     import gspread
@@ -43,7 +53,14 @@ logger = logging.getLogger(__name__)
 # Google Sheets Configuration
 GOOGLE_SHEETS_ENABLED = True
 GOOGLE_SHEET_NAME = "Know your School Database"
-SERVICE_ACCOUNT_FILE = "credentials.json"
+
+# Import Render configuration handler
+try:
+    from render_config import render_config
+    RENDER_CONFIG_AVAILABLE = True
+except ImportError:
+    RENDER_CONFIG_AVAILABLE = False
+    render_config = None
 
 class GoogleSheetsUploader:
     def __init__(self):
@@ -58,21 +75,35 @@ class GoogleSheetsUploader:
                 logger.warning("⚠️ Google Sheets packages not available")
                 return False
 
-            if not os.path.exists(SERVICE_ACCOUNT_FILE):
-                logger.error(f"❌ Service account file not found: {SERVICE_ACCOUNT_FILE}")
-                return False
-
             # Define the scope
             scope = [
                 'https://spreadsheets.google.com/feeds',
                 'https://www.googleapis.com/auth/drive'
             ]
 
-            # Authenticate using service account
-            credentials = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=scope)
-            self.client = gspread.authorize(credentials)
+            # Handle credentials based on environment
+            if RENDER_CONFIG_AVAILABLE and render_config:
+                # Use render_config for credentials
+                creds_data = render_config.get_credentials()
+                if creds_data:
+                    # Create credentials from dictionary
+                    credentials = Credentials.from_service_account_info(creds_data, scopes=scope)
+                    logger.info("✅ Using credentials from Render configuration")
+                else:
+                    logger.error("❌ No credentials available from Render configuration")
+                    return False
+            else:
+                # Fallback to local credentials.json file
+                service_account_file = "credentials.json"
+                if not os.path.exists(service_account_file):
+                    logger.error(f"❌ Service account file not found: {service_account_file}")
+                    return False
 
-            # Open the spreadsheet
+                credentials = Credentials.from_service_account_file(service_account_file, scopes=scope)
+                logger.info("✅ Using local credentials.json file")
+
+            # Authenticate and open spreadsheet
+            self.client = gspread.authorize(credentials)
             self.spreadsheet = self.client.open(GOOGLE_SHEET_NAME)
 
             self.authenticated = True
@@ -205,35 +236,54 @@ class SequentialStateProcessor:
         """Initialize Chrome browser driver optimized for the specified phase"""
         try:
             logger.info(f"🔧 Setting up Chrome driver for {phase}...")
-            
+
             # Setup Chrome options optimized for each phase
             options = uc.ChromeOptions()
-            
+
             # Core stability options
             options.add_argument("--no-sandbox")
             options.add_argument("--disable-dev-shm-usage")
             options.add_argument("--disable-gpu")
             options.add_argument("--disable-extensions")
             options.add_argument("--disable-blink-features=AutomationControlled")
-            
+
             # Performance optimizations
             options.add_argument("--disable-images")  # Speed optimization
             options.add_argument("--disable-plugins")
             options.add_argument("--memory-pressure-off")
             options.add_argument("--max_old_space_size=4096")
-            
+
             # Phase-specific optimizations
             if phase == "Phase1":
                 # Phase 1: Optimize for pagination and basic extraction
                 options.add_argument("--disable-background-timer-throttling")
                 options.add_argument("--disable-renderer-backgrounding")
                 options.add_argument("--disable-backgrounding-occluded-windows")
-                
+
             # Note: Keep JavaScript enabled for Phase 2 dynamic content
-            
+
+            # Headless mode configuration from config.py
+            if getattr(config, 'HEADLESS', True):
+                options.add_argument("--headless")
+                logger.info("🔧 Running in headless mode (no GUI)")
+
+            # Window size configuration
+            window_size = getattr(config, 'WINDOW_SIZE', '1920,1080')
+            options.add_argument(f"--window-size={window_size}")
+
+            # Additional options for server environments
+            if getattr(config, 'RENDER_DEPLOYMENT', False):
+                options.add_argument("--disable-web-security")
+                options.add_argument("--disable-features=VizDisplayCompositor")
+                options.add_argument("--single-process")
+                logger.info("🚀 Configured for Render.com deployment")
+
             self.driver = uc.Chrome(options=options, version_main=138)
-            self.driver.maximize_window()
-            
+
+            # Only maximize window if not in headless mode
+            if not getattr(config, 'HEADLESS', True):
+                self.driver.maximize_window()
+
             # Phase-specific timeouts
             if phase == "Phase1":
                 self.driver.implicitly_wait(5)
@@ -241,7 +291,7 @@ class SequentialStateProcessor:
             else:  # Phase2
                 self.driver.implicitly_wait(5)
                 self.driver.set_page_load_timeout(25)
-            
+
             logger.info(f"✅ Chrome driver initialized for {phase}")
             return True
             
@@ -1068,6 +1118,26 @@ class SequentialStateProcessor:
             else:
                 school_data['know_more_link'] = 'N/A'
 
+            # Extract Email (using multiple strategies)
+            email = 'N/A'
+
+            # Strategy 1: Extract from span.ms-2 within email link containers
+            email_span_match = re.search(r'<span[^>]*class="[^"]*ms-2[^"]*"[^>]*>([^<]+@[^<]+)</span>', element_html)
+            if email_span_match:
+                email = email_span_match.group(1).strip()
+            else:
+                # Strategy 2: Extract from mailto href attribute
+                mailto_match = re.search(r'href="mailto:([^"]+@[^"]+)"', element_html)
+                if mailto_match:
+                    email = mailto_match.group(1).strip()
+                else:
+                    # Strategy 3: Look for email pattern in text content
+                    email_text_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', element_text)
+                    if email_text_match:
+                        email = email_text_match.group(0).strip()
+
+            school_data['email'] = email
+
             # Extract other basic fields using regex patterns
             field_patterns = {
                 'operational_status': r'class="OperationalStatus"[^>]*>([^<]+)',
@@ -1327,6 +1397,14 @@ class SequentialStateProcessor:
                     'udise_code': [],
                     'school_name': [],
                     'know_more_link': [],
+                    'operational_status': [],
+                    'school_category': [],
+                    'school_management': [],
+                    'school_type': [],
+                    'school_location': [],
+                    'address': [],
+                    'pin_code': [],
+                    'email': [],
                     'extraction_date': []
                 }
                 df_empty = pd.DataFrame(empty_data)

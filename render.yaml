@@ -1,0 +1,59 @@
+services:
+  - type: web
+    name: schools-scraper
+    env: python
+    buildCommand: |
+      # Install system dependencies for Chrome
+      apt-get update
+      apt-get install -y wget gnupg unzip
+      # Add Google Chrome repository
+      wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
+      echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list
+      apt-get update
+      # Install Chrome
+      apt-get install -y google-chrome-stable
+      # Install Python dependencies
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: python app.py
+    plan: starter
+    region: oregon
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: HEADLESS
+        value: true
+      - key: RENDER_DEPLOYMENT
+        value: true
+      - key: WINDOW_SIZE
+        value: 1920,1080
+      - key: MAX_RETRIES
+        value: 3
+      - key: RETRY_DELAY
+        value: 5
+      - key: WAIT_BETWEEN_STATES
+        value: 3
+      - key: WAIT_BETWEEN_DISTRICTS
+        value: 2
+      - key: WAIT_AFTER_SEARCH
+        value: 5
+      - key: WAIT_FOR_PAGE_LOAD
+        value: 3
+      - key: OUTPUT_DIRECTORY
+        value: output
+      - key: BACKUP_FREQUENCY
+        value: 100
+      - key: IMPLICIT_WAIT
+        value: 10
+      - key: EXPLICIT_WAIT
+        value: 10
+      - key: PAGE_LOAD_TIMEOUT
+        value: 30
+      - key: BASE_URL
+        value: https://udiseplus.gov.in/#/en/home
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_FORMAT
+        value: "%(asctime)s - %(levelname)s - %(message)s"
+    # Secret files (to be configured in Render dashboard)
+    # - GOOGLE_CREDENTIALS_JSON: Content of credentials.json as JSON string

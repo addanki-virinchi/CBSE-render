@@ -16,11 +16,14 @@ import time
 import logging
 import pandas as pd
 from datetime import datetime
-import undetected_chromedriver as uc
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from webdriver_manager.chrome import ChromeDriverManager
 import json
 import re
 import glob
@@ -280,7 +283,7 @@ class SequentialStateProcessor:
             logger.info(f"🔧 Setting up Chrome driver for {phase}...")
 
             # Setup Chrome options optimized for each phase
-            options = uc.ChromeOptions()
+            options = Options()
 
             # Core stability options
             options.add_argument("--no-sandbox")
@@ -320,7 +323,9 @@ class SequentialStateProcessor:
                 options.add_argument("--single-process")
                 logger.info("🚀 Configured for Render.com deployment")
 
-            self.driver = uc.Chrome(options=options, version_main=138)
+            # Initialize Chrome driver with webdriver-manager
+            service = Service(ChromeDriverManager().install())
+            self.driver = webdriver.Chrome(service=service, options=options)
 
             # Only maximize window if not in headless mode
             if not getattr(config, 'HEADLESS', True):

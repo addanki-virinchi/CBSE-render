@@ -9,11 +9,14 @@ Phase 2 Automated Processor - Fully automated processing of Phase 1 CSV files
 
 import pandas as pd
 import time
-import undetected_chromedriver as uc
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from datetime import datetime
 import os
@@ -68,7 +71,7 @@ class AutomatedPhase2Processor:
         """Initialize Chrome browser driver with optimized settings for Phase 2 processing"""
         try:
             # Setup Chrome options for Phase 2 data extraction
-            options = uc.ChromeOptions()
+            options = Options()
 
             # Core stability options
             options.add_argument("--no-sandbox")
@@ -102,7 +105,9 @@ class AutomatedPhase2Processor:
                 options.add_argument("--single-process")
                 logger.info("🚀 Configured for Render.com deployment")
 
-            self.driver = uc.Chrome(options=options)
+            # Initialize Chrome driver with webdriver-manager
+            service = Service(ChromeDriverManager().install())
+            self.driver = webdriver.Chrome(service=service, options=options)
 
             # Only maximize window if not in headless mode
             if not getattr(config, 'HEADLESS', True):

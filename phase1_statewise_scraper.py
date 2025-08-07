@@ -12,11 +12,11 @@ from selenium.webdriver.common.by import By
 # Removed unused import for performance
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 import csv
 import json
 import re
-import undetected_chromedriver as uc
 import logging
 from datetime import datetime
 import os
@@ -49,7 +49,7 @@ class StatewiseSchoolScraper:
         """Initialize the Chrome browser driver with optimized performance settings"""
         try:
             # Setup Chrome options for optimal performance and reliability
-            options = uc.ChromeOptions()
+            options = Options()
 
             # Core stability options
             options.add_argument("--no-sandbox")
@@ -85,8 +85,9 @@ class StatewiseSchoolScraper:
                 options.add_argument("--single-process")
                 logger.info("🚀 Configured for Render.com deployment")
 
-            # Initialize Chrome driver
-            self.driver = uc.Chrome(options=options, version_main=138)
+            # Initialize Chrome driver with webdriver-manager
+            service = Service(ChromeDriverManager().install())
+            self.driver = webdriver.Chrome(service=service, options=options)
 
             # Only maximize window if not in headless mode
             if not getattr(config, 'HEADLESS', True):

@@ -213,6 +213,9 @@ def find_chrome_binary():
     """Find Chrome binary location for different environments"""
     import os
     import platform
+    import subprocess
+
+    logger = logging.getLogger(__name__)
 
     # Common Chrome binary locations
     chrome_paths = [
@@ -221,6 +224,8 @@ def find_chrome_binary():
         "/usr/bin/chromium-browser",      # Chromium fallback
         "/opt/google/chrome/chrome",      # Alternative location
         "/snap/bin/chromium",             # Snap package
+        "/usr/bin/chromium",              # Another chromium location
+        "/usr/local/bin/google-chrome",   # Local installation
     ]
 
     # Windows paths (for local development)
@@ -238,10 +243,48 @@ def find_chrome_binary():
         ])
 
     # Check which Chrome binary exists
+    logger.info("🔍 Searching for Chrome binary...")
     for path in chrome_paths:
         if os.path.exists(path):
+            logger.info(f"✅ Found Chrome binary at: {path}")
             return path
+        else:
+            logger.debug(f"❌ Chrome not found at: {path}")
 
+    # Try to find Chrome using 'which' command
+    try:
+        result = subprocess.run(['which', 'google-chrome-stable'],
+                              capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout.strip():
+            path = result.stdout.strip()
+            logger.info(f"✅ Found Chrome via 'which': {path}")
+            return path
+    except Exception as e:
+        logger.debug(f"'which' command failed: {e}")
+
+    # Try alternative 'which' commands
+    for cmd in ['google-chrome', 'chromium-browser', 'chromium']:
+        try:
+            result = subprocess.run(['which', cmd],
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and result.stdout.strip():
+                path = result.stdout.strip()
+                logger.info(f"✅ Found Chrome via 'which {cmd}': {path}")
+                return path
+        except Exception as e:
+            logger.debug(f"'which {cmd}' command failed: {e}")
+
+    # List available binaries for debugging
+    try:
+        logger.info("🔍 Listing /usr/bin/ for Chrome-related binaries...")
+        result = subprocess.run(['ls', '/usr/bin/', '|', 'grep', '-i', 'chrom'],
+                              capture_output=True, text=True, shell=True, timeout=10)
+        if result.stdout:
+            logger.info(f"Available Chrome binaries: {result.stdout}")
+    except Exception as e:
+        logger.debug(f"Failed to list Chrome binaries: {e}")
+
+    logger.warning("⚠️ No Chrome binary found in standard locations")
     return None
 
 class SequentialStateProcessor:
@@ -364,11 +407,54 @@ class SequentialStateProcessor:
                 options.binary_location = chrome_binary
                 logger.info(f"🔍 Using Chrome binary: {chrome_binary}")
             else:
-                logger.warning("⚠️ Chrome binary not found, using system default")
+                logger.warning("⚠️ Chrome binary not found, trying system default")
 
-            # Initialize Chrome driver with webdriver-manager
-            service = Service(ChromeDriverManager().install())
-            self.driver = webdriver.Chrome(service=service, options=options)
+            # Initialize Chrome driver with multiple fallback strategies
+            driver_initialized = False
+
+            # Strategy 1: Use webdriver-manager with detected binary
+            if not driver_initialized:
+                try:
+                    service = Service(ChromeDriverManager().install())
+                    self.driver = webdriver.Chrome(service=service, options=options)
+                    driver_initialized = True
+                    logger.info("✅ Chrome driver initialized with webdriver-manager")
+                except Exception as e:
+                    logger.warning(f"⚠️ webdriver-manager failed: {e}")
+
+            # Strategy 2: Try without binary location if it was set
+            if not driver_initialized and chrome_binary:
+                try:
+                    logger.info("🔄 Retrying without binary location specification...")
+                    options_fallback = Options()
+                    # Copy all arguments except binary_location
+                    for arg in options.arguments:
+                        options_fallback.add_argument(arg)
+
+                    service = Service(ChromeDriverManager().install())
+                    self.driver = webdriver.Chrome(service=service, options=options_fallback)
+                    driver_initialized = True
+                    logger.info("✅ Chrome driver initialized without binary location")
+                except Exception as e:
+                    logger.warning(f"⚠️ Fallback without binary location failed: {e}")
+
+            # Strategy 3: Try with system ChromeDriver (if available)
+            if not driver_initialized:
+                try:
+                    logger.info("🔄 Trying with system ChromeDriver...")
+                    options_system = Options()
+                    # Copy all arguments except binary_location
+                    for arg in options.arguments:
+                        options_system.add_argument(arg)
+
+                    self.driver = webdriver.Chrome(options=options_system)
+                    driver_initialized = True
+                    logger.info("✅ Chrome driver initialized with system ChromeDriver")
+                except Exception as e:
+                    logger.warning(f"⚠️ System ChromeDriver failed: {e}")
+
+            if not driver_initialized:
+                raise Exception("Failed to initialize Chrome driver with all strategies")
 
             # Only maximize window if not in headless mode
             if not getattr(config, 'HEADLESS', True):

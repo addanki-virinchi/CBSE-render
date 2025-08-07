@@ -199,7 +199,7 @@ if __name__ == '__main__':
     os.makedirs(output_dir, exist_ok=True)
     
     # Log startup information
-    add_log("🚀 School Scraper Web App starting...")
+    add_log("🚀 School Scraper Web App starting... (v2.0 - Fixed AttributeError)")
     add_log(f"📁 Output directory: {output_dir}")
     add_log(f"🔧 Headless mode: {render_config.get_config('HEADLESS')}")
     add_log(f"🌐 Render deployment: {render_config.get_config('RENDER_DEPLOYMENT')}")

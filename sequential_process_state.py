@@ -209,6 +209,41 @@ class GoogleSheetsUploader:
             logger.error(f"❌ Failed to upload data to Google Sheets for {state_name}: {e}")
             return False
 
+def find_chrome_binary():
+    """Find Chrome binary location for different environments"""
+    import os
+    import platform
+
+    # Common Chrome binary locations
+    chrome_paths = [
+        "/usr/bin/google-chrome-stable",  # Render.com / Ubuntu
+        "/usr/bin/google-chrome",         # Alternative Ubuntu
+        "/usr/bin/chromium-browser",      # Chromium fallback
+        "/opt/google/chrome/chrome",      # Alternative location
+        "/snap/bin/chromium",             # Snap package
+    ]
+
+    # Windows paths (for local development)
+    if platform.system() == "Windows":
+        chrome_paths.extend([
+            "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+            "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+        ])
+
+    # macOS paths (for local development)
+    elif platform.system() == "Darwin":
+        chrome_paths.extend([
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        ])
+
+    # Check which Chrome binary exists
+    for path in chrome_paths:
+        if os.path.exists(path):
+            return path
+
+    return None
+
 class SequentialStateProcessor:
     def __init__(self):
         self.driver = None
@@ -322,6 +357,14 @@ class SequentialStateProcessor:
                 options.add_argument("--disable-features=VizDisplayCompositor")
                 options.add_argument("--single-process")
                 logger.info("🚀 Configured for Render.com deployment")
+
+            # Find and set Chrome binary location
+            chrome_binary = find_chrome_binary()
+            if chrome_binary:
+                options.binary_location = chrome_binary
+                logger.info(f"🔍 Using Chrome binary: {chrome_binary}")
+            else:
+                logger.warning("⚠️ Chrome binary not found, using system default")
 
             # Initialize Chrome driver with webdriver-manager
             service = Service(ChromeDriverManager().install())

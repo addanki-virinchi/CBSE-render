@@ -231,6 +231,48 @@ class SequentialStateProcessor:
         self.sheets_uploader = None
         if GOOGLE_SHEETS_ENABLED:
             self.sheets_uploader = GoogleSheetsUploader()
+
+        # State list for Flask app compatibility (all 38 Indian states)
+        self.states_list = [
+            "ANDAMAN & NICOBAR ISLANDS",
+            "ANDHRA PRADESH",
+            "ARUNACHAL PRADESH",
+            "ASSAM",
+            "BIHAR",
+            "CHANDIGARH",
+            "CHHATTISGARH",
+            "DADRA & NAGAR HAVELI AND DAMAN & DIU",
+            "DELHI",
+            "GOA",
+            "GUJARAT",
+            "HARYANA",
+            "HIMACHAL PRADESH",
+            "JAMMU & KASHMIR",
+            "JHARKHAND",
+            "KARNATAKA",
+            "KENDRIYA VIDYALAYA SANGHATHAN",
+            "KERALA",
+            "LADAKH",
+            "LAKSHADWEEP",
+            "MADHYA PRADESH",
+            "MAHARASHTRA",
+            "MANIPUR",
+            "MEGHALAYA",
+            "MIZORAM",
+            "NAGALAND",
+            "NAVODAYA VIDYALAYA SAMITI",
+            "ODISHA",
+            "PUDUCHERRY",
+            "PUNJAB",
+            "RAJASTHAN",
+            "SIKKIM",
+            "TAMIL NADU",
+            "TELANGANA",
+            "TRIPURA",
+            "UTTARAKHAND",
+            "UTTAR PRADESH",
+            "WEST BENGAL"
+        ]
         
     def setup_driver(self, phase="Phase1"):
         """Initialize Chrome browser driver optimized for the specified phase"""
@@ -477,6 +519,33 @@ class SequentialStateProcessor:
         except Exception as e:
             logger.error(f"❌ Failed to process state {state_name}: {e}")
             self.failed_states.append(state_name)
+            return False
+
+    def process_complete_state(self, state_name):
+        """Process a complete state by name (for Flask app compatibility)"""
+        try:
+            # Get available states from portal
+            states = self.get_available_states()
+            if not states:
+                logger.error(f"❌ Could not get available states")
+                return False
+
+            # Find the state by name
+            target_state = None
+            for state in states:
+                if state['stateName'] == state_name:
+                    target_state = state
+                    break
+
+            if not target_state:
+                logger.error(f"❌ State '{state_name}' not found in available states")
+                return False
+
+            # Process the state completely
+            return self.process_single_state_complete(target_state)
+
+        except Exception as e:
+            logger.error(f"❌ Error processing complete state {state_name}: {e}")
             return False
     
     def show_state_selection_menu(self, states):
